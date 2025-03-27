@@ -50,9 +50,11 @@ section .text
 global _start
 
 _start:     
+            ;----------------DEBUG----------------
             call test_print
+            ;-------------------------------------
 
-            push 65             ; push "A"
+            push 'B'             ; push "B"
             push format_string
             call MyPrintf
 
@@ -95,6 +97,7 @@ _start:
 MyPrintf:
             pop r14         ; give return code
             pop r8          ; pointer to format string
+            ; Give elem we can in cycle? when we have %. Return code we can save in r14, and push it in the end of function 
             pop r9          ; first elem
             push r14        ; return code
 
@@ -106,7 +109,7 @@ MyPrintf:
                 
                 mov al, [r8]            ; current symb f_s -> al
                 cmp al, 0x00            ; (form_str[r8] == '\0')
-                je _stop_while_read_format_string
+                je _stop_while_read_format_string ;jz- flag null
 
                 ;cmp [spec_symb], [r8]   ; if (form_str[r8] != %) ([spec_symb] = ASCII("%"))  ???????????????????????????????????/
                 cmp al, 0x25            ; if (form_str[r8] != %)
@@ -114,6 +117,9 @@ MyPrintf:
 
                     ; (if (form_str[r8] == %))
                     _proc:
+                        ;----------------DEBUG----------------
+                        call test_print             ; DEUBG
+                        ;-------------------------------------
                         inc r8                      ; pointer to format string ++ (next symbol)
                         mov al, [r8]                ; current symb f_s -> al
 
@@ -130,12 +136,25 @@ MyPrintf:
 
 
                     _c:
-                        inc r8                      ; pointer to format string ++ (next symbol)
-                        mov al, [r8]                ; current symb f_s -> al
+                        ;----------------DEBUG----------------
+                        call test_print             ; DEUBG 
+                        ;-------------------------------------
+                        
+                        ;inc r8                      ; pointer to format string ++ (next symbol)
+                        ;mov al, [r8]                ; current symb f_s -> al
 
                         ;cmp [spec_symb_c], [r8]     ; (if (form_str[r8] == c))
                         cmp al, 0x63                ; (if (form_str[r8] == c))
                         jne  _b                     ; next case
+
+                        ;call test_print
+
+                        ;----------------DEBUG----------------
+                        cmp r9b, 66                 ; 'B'
+                        jne METKA
+                            call test_print         ; DEUBG (NO)
+                        METKA:
+                        ;-------------------------------------
 
                         mov [r15], r9b              ; buf[r15] = first elem (low byte) translate: младший байт, тк в r9 - 8 байт, а нам надо записать только 1 char
                         inc r15                     ; buffer pointer ++
@@ -145,8 +164,8 @@ MyPrintf:
 
 
                     _b:
-                        inc r8
-                        mov al, [r8]                ; current symb f_s -> al
+                        ;inc r8
+                        ;mov al, [r8]                ; current symb f_s -> al
 
                         cmp al, 0x62     ; (if (form_str[r8] == b))
                         jne  _break                 ; last case
@@ -211,13 +230,24 @@ Write_Buffer:
 
 
 test_print:     
+            push rax
+            push rdi
+            push rsi
+            push rdx
+
             mov rax, 1              ; write64 (rdi, rsi, rdx) ... r10, r8, r9
             mov rdi, 1              ; command
             mov rsi, test_string
             mov rdx, test_string_len
 
+
             syscall
             
+            pop rdx
+            pop rsi
+            pop rdi
+            pop rax
+
             ret
 
 
@@ -236,8 +266,8 @@ spec_symb_b:    db "b"                  ; ASCII("b")  = 0x62
 spec_symb_c:    db "c"                  ; ASCII("c")  = 0x63
 spec_symb_nul:  db "\0"                 ; ASCII("\0") = 0x00
 
-
-buffer_1:   dq 0                          ; 8 byte - (8 char) (very small..)
-buffer_2:   dq 0                          ; 8 byte - (8 char) (16 byte in sum)
-buffer_3:   dq 0                          ; 8 byte - (8 char) (24 byte in sum)
-buffer_4:   dq 0                          ; 8 byte - (8 char) (32 byte in sum)
+buffer_1: resb 128
+;buffer_1:   dq 0                          ; 8 byte - (8 char) (very small..)
+;buffer_2:   dq 0                          ; 8 byte - (8 char) (16 byte in sum)
+;buffer_3:   dq 0                          ; 8 byte - (8 char) (24 byte in sum)
+;buffer_4:   dq 0                          ; 8 byte - (8 char) (32 byte in sum)
