@@ -55,6 +55,7 @@ _start:
             ;-------------------------------------
 
             push 'B'             ; push "B"
+            push 'A'
             push format_string
             call MyPrintf
 
@@ -98,8 +99,8 @@ MyPrintf:
             pop r14         ; give return code
             pop r8          ; pointer to format string
             ; Give elem we can in cycle? when we have %. Return code we can save in r14, and push it in the end of function 
-            pop r9          ; first elem
-            push r14        ; return code
+            ;pop r9          ; first elem
+            ;push r14        ; return code
 
             mov r15, buffer_1
 
@@ -136,6 +137,7 @@ MyPrintf:
 
 
                     _c:
+                        pop r9          ; first elem - 
                         ;----------------DEBUG----------------
                         call test_print             ; DEUBG 
                         ;-------------------------------------
@@ -150,7 +152,7 @@ MyPrintf:
                         ;call test_print
 
                         ;----------------DEBUG----------------
-                        cmp r9b, 66                 ; 'B'
+                        cmp r9b, 66                 ; 'B's
                         jne METKA
                             call test_print         ; DEUBG (NO)
                         METKA:
@@ -192,6 +194,8 @@ MyPrintf:
 
 
             call Write_Buffer                       ; call func write_buffer
+
+            push r14        ; put return code
 
             ret
 
@@ -259,7 +263,7 @@ test_string:        db "I work!", 10    ; size of pointer - 8 byte
 test_string_len:    equ $ - test_string
 
 
-format_string: db "I WORK: %c", 10, 0   ; format string
+format_string: db "I WORK: %% %c %c - symbols %%", 10, 0   ; format string
 
 spec_symb:      db "%"                  ; ASCII("%")  = 0x25
 spec_symb_b:    db "b"                  ; ASCII("b")  = 0x62
