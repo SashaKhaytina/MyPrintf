@@ -1,33 +1,4 @@
-;:================================================
-;: 0-Linux-nasm-64.s                   (c)Ded,2012
-;:================================================
-
-; nasm -f elf64 -l 1-nasm.lst 1-nasm.s  ;  ld -s -o 1-nasm 1-nasm.o
-
-
-;section .text
-
-;global _start                  ; predefined entry point name for ld
-
-;_start:     mov rax, 0x01      ; write64 (rdi, rsi, rdx) ... r10, r8, r9
-;            mov rdi, 1         ; stdout
-;            mov rsi, Msg
-;            mov rdx, MsgLen    ; strlen (Msg)
-;            syscall
-;            
-;            mov rax, 0x3C      ; exit64 (rdi)
-;            xor rdi, rdi
-;            syscall
-            
-;section     .data
-            
-;Msg:        db "__Hllwrld", 0x0a
-;MsgLen      equ $ - Msg
-
-
-
-
-
+;: 0-Linux-nasm-64.s  
 ;:================================================
 ;: func_MyPrintf.s                   (c)ALXnd,2025
 ;:================================================
@@ -55,7 +26,7 @@ _start:
             ;-------------------------------------
 
             push 'B'             ; push "B"
-            push 'A'
+            push 121
             push format_string
             call MyPrintf
 
@@ -92,7 +63,6 @@ _start:
 ;   r8  - pointer to format string                      (8 byte = 64 bit)
 ;   r9  - first elem                                    (8 byte = 64 bit)
 ;   r15 - buffer pointer                                (8 byte = 64 bit)
-;   eax - variable for save symbol                      (4 byte = 32 bit) (while enough) translate: пока нам этого хватит
 ;   al  - variable for current symbol in format string  (1 byte = 4 bit ) (one char)
 ;==========================================================
 MyPrintf:
@@ -147,7 +117,7 @@ MyPrintf:
 
                         ;cmp [spec_symb_c], [r8]     ; (if (form_str[r8] == c))
                         cmp al, 0x63                ; (if (form_str[r8] == c))
-                        jne  _b                     ; next case
+                        jne  _d                     ; next case
 
                         ;call test_print
 
@@ -165,14 +135,39 @@ MyPrintf:
                         jmp _break
 
 
-                    _b:
+                    _d:
+                        ;----------------DEBUG----------------
+                        call test_print             ; DEUBG 
+                        ;-------------------------------------
+
                         ;inc r8
                         ;mov al, [r8]                ; current symb f_s -> al
 
-                        cmp al, 0x62     ; (if (form_str[r8] == b))
+                        cmp al, 0x64                ; (if (form_str[r8] == b))
                         jne  _break                 ; last case
 
-                        ; Тут надо в while брать остаток от 10, прибавлять 48 и запихивать в буффер.
+                        ;----------------DEBUG----------------
+                        call test_print             ; DEUBG 
+                        ;-------------------------------------
+
+                        ; r9d - 4 byte - this num
+
+                        ;push rax
+                        ; while (num / 10 != 0) { buffer.add( num % 10); num /= 10; }
+                        mov eax, r9d
+                        parsing_num:
+                            mov r10d, 10
+                            cdq
+                            idiv r10d       ; частное в eax, остаток в edx
+
+                            add edx, 48
+                            mov [r15], dl   ; low byte edx
+                            inc r15         ; buffer pointer ++
+
+                            cmp eax, 0
+                            jne parsing_num
+
+                        inc r8              ; pointer to format string ++
 
                         jmp _break
 
@@ -263,12 +258,15 @@ test_string:        db "I work!", 10    ; size of pointer - 8 byte
 test_string_len:    equ $ - test_string
 
 
-format_string: db "I WORK: %% %c %c - symbols %%", 10, 0   ; format string
+format_string: db "I WORK: %% %d %c - symbols %%", 10, 0   ; format string
 
-spec_symb:      db "%"                  ; ASCII("%")  = 0x25
-spec_symb_b:    db "b"                  ; ASCII("b")  = 0x62
-spec_symb_c:    db "c"                  ; ASCII("c")  = 0x63
-spec_symb_nul:  db "\0"                 ; ASCII("\0") = 0x00
+
+
+
+;spec_symb:      db "%"                  ; ASCII("%")  = 0x25
+;spec_symb_d:    db "d"                  ; ASCII("d")  = 0x64
+;spec_symb_c:    db "c"                  ; ASCII("c")  = 0x63
+;spec_symb_nul:  db "\0"                 ; ASCII("\0") = 0x00
 
 buffer_1: resb 128
 ;buffer_1:   dq 0                          ; 8 byte - (8 char) (very small..)
