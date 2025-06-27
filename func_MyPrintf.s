@@ -9,7 +9,10 @@
 ;
 ; 
 ; nasm -f elf64 -l func_MyPrintf.lst func_MyPrintf.s  
-; ld -s -o func_MyPrintf func_MyPrintf.o
+; ld -s -o func_MyPrintf func_MyPrintf.o 
+; ЗДЕСЬ -s НЕ ДАЕТ РАБОТАТЬ GDB. Чтобы gdb работал компилируйте так:
+; nasm -g -f elf64 -l func_MyPrintf.lst func_MyPrintf.s  
+; ld -o func_MyPrintf func_MyPrintf.o
 ;-------------------------------------------------
 
 
@@ -22,11 +25,12 @@ global _start
 
 _start:     
             ;----------------DEBUG----------------
-            call test_print
+            ;call test_print
             ;-------------------------------------
 
             push 'B'             ; push "B"
-            push 121
+            push 123456789
+            ;push 12345
             push format_string
             call MyPrintf
 
@@ -63,18 +67,15 @@ _start:
 ;   r8  - pointer to format string                      (8 byte = 64 bit)
 ;   r9  - first elem                                    (8 byte = 64 bit)
 ;   r15 - buffer pointer                                (8 byte = 64 bit)
+;   r13 - buffer end pointer                            (8 byte = 64 bit)
 ;   al  - variable for current symbol in format string  (1 byte = 4 bit ) (one char)
 ;==========================================================
 MyPrintf:
             pop r14         ; give return code
             pop r8          ; pointer to format string
-            ; Give elem we can in cycle? when we have %. Return code we can save in r14, and push it in the end of function 
-            ;pop r9          ; first elem
-            ;push r14        ; return code
 
             mov r15, buffer_1
-
-            ; Это должно быть в while !!!!!!!
+            mov r13, end_buffer
 
             _cycle_while_read_format_string:
                 
@@ -82,26 +83,28 @@ MyPrintf:
                 cmp al, 0x00            ; (form_str[r8] == '\0')
                 je _stop_while_read_format_string ;jz- flag null
 
-                ;cmp [spec_symb], [r8]   ; if (form_str[r8] != %) ([spec_symb] = ASCII("%"))  ???????????????????????????????????/
                 cmp al, 0x25            ; if (form_str[r8] != %)
                 jne _print_letter
 
                     ; (if (form_str[r8] == %))
                     _proc:
                         ;----------------DEBUG----------------
-                        call test_print             ; DEUBG
+                        ;call test_print             ; DEUBG
                         ;-------------------------------------
                         inc r8                      ; pointer to format string ++ (next symbol)
                         mov al, [r8]                ; current symb f_s -> al
 
-                        ;cmp [spec_symb], [r8]       ; (if (form_str[r8] == %))
                         cmp al, 0x25                ; if (form_str[r8] != %)
                         jne  _c                     ; next case
 
-                        ;mov [r15], [spec_symb]      ; buf[r15] = "%"
                         mov [r15], al               ; buf[r15] = "%"
                         inc r15                     ; buffer pointer ++
                         inc r8                      ; pointer to format string ++
+
+                        cmp r15, r13
+                        jne no_full_buffer_1
+                            call Write_Buffer
+                        no_full_buffer_1:
 
                         jmp _break
 
@@ -109,50 +112,46 @@ MyPrintf:
                     _c:
                         pop r9          ; first elem - 
                         ;----------------DEBUG----------------
-                        call test_print             ; DEUBG 
+                        ;call test_print             ; DEUBG 
                         ;-------------------------------------
                         
-                        ;inc r8                      ; pointer to format string ++ (next symbol)
-                        ;mov al, [r8]                ; current symb f_s -> al
-
-                        ;cmp [spec_symb_c], [r8]     ; (if (form_str[r8] == c))
                         cmp al, 0x63                ; (if (form_str[r8] == c))
                         jne  _d                     ; next case
 
-                        ;call test_print
 
                         ;----------------DEBUG----------------
-                        cmp r9b, 66                 ; 'B's
-                        jne METKA
-                            call test_print         ; DEUBG (NO)
-                        METKA:
+                        ;cmp r9b, 66                 ; 'B's
+                        ;jne METKA
+                        ;    call test_print         ; DEUBG (NO)
+                        ;METKA:
                         ;-------------------------------------
 
                         mov [r15], r9b              ; buf[r15] = first elem (low byte) translate: младший байт, тк в r9 - 8 байт, а нам надо записать только 1 char
                         inc r15                     ; buffer pointer ++
                         inc r8                      ; pointer to format string ++
 
+                        cmp r15, r13
+                        jne no_full_buffer_2
+                            call Write_Buffer
+                        no_full_buffer_2:
+
                         jmp _break
 
 
                     _d:
                         ;----------------DEBUG----------------
-                        call test_print             ; DEUBG 
+                        ;call test_print             ; DEUBG 
                         ;-------------------------------------
 
-                        ;inc r8
-                        ;mov al, [r8]                ; current symb f_s -> al
-
-                        cmp al, 0x64                ; (if (form_str[r8] == b))
+                        cmp al, 0x64                ; (if (form_str[r8] == d))
                         jne  _break                 ; last case
 
                         ;----------------DEBUG----------------
-                        call test_print             ; DEUBG 
+                        ;call test_print             ; DEUBG 
                         ;-------------------------------------
+                        push r10            ; helper variable
 
-                        ; r9d - 4 byte - this num
-
-                        ;push rax
+                        mov r11, help_buffer
                         ; while (num / 10 != 0) { buffer.add( num % 10); num /= 10; }
                         mov eax, r9d
                         parsing_num:
@@ -161,11 +160,40 @@ MyPrintf:
                             idiv r10d       ; частное в eax, остаток в edx
 
                             add edx, 48
-                            mov [r15], dl   ; low byte edx
-                            inc r15         ; buffer pointer ++
+                            mov [r11], dl   ; low byte edx
+                            inc r11         ; help buffer pointer ++
+
+                            ;----------------DEBUG----------------
+                            ;call test_print             ; DEUBG 
+                            ;-------------------------------------
 
                             cmp eax, 0
                             jne parsing_num
+
+                                        
+                        mov r10, help_buffer
+                        sub r11, 1
+                        write_ans:
+                            cmp r10, r11
+                            ja stop_write
+                            
+                            ;если тут, то segfoult
+
+                            mov al, [r11]
+                            ;sub r11, 1
+                            dec r11
+                            mov [r15], al
+                            inc r15
+
+                            ; если тут, то просто не пишет дальше
+                            cmp r15, r13
+                            jne no_full_buffer_3
+                                call Write_Buffer
+                            no_full_buffer_3:
+                        
+                            jmp write_ans
+                        stop_write:
+                        pop r10
 
                         inc r8              ; pointer to format string ++
 
@@ -175,17 +203,20 @@ MyPrintf:
                 jmp _cycle_while_read_format_string ; HERE jmp to start while
 
                 _print_letter:
-                    ;mov [r15], [r8]
                     mov [r15], al
                     inc r15                         ; buffer pointer ++
                     inc r8                          ; pointer to format string ++
 
+                    cmp r15, r13
+                    jne no_full_buffer_4
+                        call Write_Buffer
+                    no_full_buffer_4:
+
                     jmp _cycle_while_read_format_string ; HERE jmp to start while
+                
                 
 
             _stop_while_read_format_string:
-            ;add r8, 1
-            ;mov [r15], spec_symb_nul                ; put in end buffer "\0" (null) (this is no need)
 
 
             call Write_Buffer                       ; call func write_buffer
@@ -214,6 +245,16 @@ MyPrintf:
 ; DESTR: NO NO NO Mister Fish
 ;==========================================================
 Write_Buffer:
+            push rax
+            push rdi
+            push rsi
+            push rdx
+            push r11 ; !!!
+            push r10
+            push r9
+            push r8
+
+
             mov rax, 1          ; write64 (rdi, rsi, rdx) ... r10, r8, r9
             mov rdi, 1          ; stdout (place where write)
             mov rsi, buffer_1
@@ -222,12 +263,25 @@ Write_Buffer:
             mov rdx, r15        ; size (strlen)
             syscall             ; write buffer
 
+            mov r15, buffer_1
+
+            pop r8
+            pop r9
+            pop r10
+            pop r11
+            pop rdx
+            pop rsi
+            pop rdi
+            pop rax
+
             ret
             
 
 
 
-
+;==========================================================
+; DEBUG_FUNCTION
+;==========================================================
 test_print:     
             push rax
             push rdi
@@ -268,7 +322,10 @@ format_string: db "I WORK: %% %d %c - symbols %%", 10, 0   ; format string
 ;spec_symb_c:    db "c"                  ; ASCII("c")  = 0x63
 ;spec_symb_nul:  db "\0"                 ; ASCII("\0") = 0x00
 
-buffer_1: resb 128
+help_buffer: resb 12                        ; 12 byte (max size int < 10^12)
+
+buffer_1: resb 4                          ; 128 byte
+end_buffer:
 ;buffer_1:   dq 0                          ; 8 byte - (8 char) (very small..)
 ;buffer_2:   dq 0                          ; 8 byte - (8 char) (16 byte in sum)
 ;buffer_3:   dq 0                          ; 8 byte - (8 char) (24 byte in sum)
