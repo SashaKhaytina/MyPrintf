@@ -27,7 +27,8 @@ _start:
             ;----------------DEBUG----------------
             ;call test_print
             ;-------------------------------------
-
+            push 'A'
+            push print_string
             push 'B'             ; push "B"
             push 123456789
             ;push 12345
@@ -64,11 +65,16 @@ _start:
 ;--------------------------
 ; DESTR:
 ;   r14 - return code
-;   r8  - pointer to format string                      (8 byte = 64 bit)
-;   r9  - first elem                                    (8 byte = 64 bit)
-;   r15 - buffer pointer                                (8 byte = 64 bit)
-;   r13 - buffer end pointer                            (8 byte = 64 bit)
-;   al  - variable for current symbol in format string  (1 byte = 4 bit ) (one char)
+;   r8  - pointer to format string                                          (8 byte = 64 bit)
+;   r9  - first elem (from stack)                                           (8 byte = 64 bit)
+;   r15 - buffer pointer                                                    (8 byte = 64 bit)
+;   r13 - buffer end pointer                                                (8 byte = 64 bit)
+;   al  - variable for current symbol in format string                      (1 byte = 4 bit ) (one char)
+;         or current symb, that will put in buffer now (use in cycles)
+;
+;   Other regisrts used, that no changed.
+;   r10
+;   r11
 ;==========================================================
 MyPrintf:
             pop r14         ; give return code
@@ -102,9 +108,9 @@ MyPrintf:
                         inc r8                      ; pointer to format string ++
 
                         cmp r15, r13
-                        jne no_full_buffer_1
+                        jne no_full_buffer_proc
                             call Write_Buffer
-                        no_full_buffer_1:
+                        no_full_buffer_proc:
 
                         jmp _break
 
@@ -131,9 +137,9 @@ MyPrintf:
                         inc r8                      ; pointer to format string ++
 
                         cmp r15, r13
-                        jne no_full_buffer_2
+                        jne no_full_buffer_c
                             call Write_Buffer
-                        no_full_buffer_2:
+                        no_full_buffer_c:
 
                         jmp _break
 
@@ -144,12 +150,13 @@ MyPrintf:
                         ;-------------------------------------
 
                         cmp al, 0x64                ; (if (form_str[r8] == d))
-                        jne  _break                 ; last case
-
+                        jne  _s                 ; last case                     
+ 
                         ;----------------DEBUG----------------
                         ;call test_print             ; DEUBG 
                         ;-------------------------------------
                         push r10            ; helper variable
+                        push rax            ; current symb, that will put in buffer now (use in cycles)
 
                         mov r11, help_buffer
                         ; while (num / 10 != 0) { buffer.add( num % 10); num /= 10; }
@@ -170,7 +177,7 @@ MyPrintf:
                             cmp eax, 0
                             jne parsing_num
 
-                                        
+
                         mov r10, help_buffer
                         sub r11, 1
                         write_ans:
@@ -187,17 +194,56 @@ MyPrintf:
 
                             ; если тут, то просто не пишет дальше
                             cmp r15, r13
-                            jne no_full_buffer_3
+                            jne no_full_buffer_d
                                 call Write_Buffer
-                            no_full_buffer_3:
+                            no_full_buffer_d:
                         
                             jmp write_ans
                         stop_write:
+                        pop rax
                         pop r10
 
                         inc r8              ; pointer to format string ++
 
                         jmp _break
+                    
+
+
+                    _s:
+                        ;----------------DEBUG----------------
+                        ; call test_print             ; DEUBG 
+                        ;-------------------------------------
+
+                        cmp al, 0x73                ; (if (form_str[r8] == s))
+                        jne  _break                 ; last case
+
+
+                        push rax                    ; current symb, that will put in buffer now (use in cycles)
+                        mov al, 10 
+                        _read_and_write_string:     ; while (al != \0)
+                            
+                            mov al, [r9]            ; al = elem from string (will put to buffer)
+                            inc r9                  ; next letter from string
+                            cmp al, 0               ; (al == 0)?
+                            je _end_read_string
+
+                            mov [r15], al
+                            inc r15
+
+                            cmp r15, r13
+                            jne no_full_buffer_s
+                                call Write_Buffer
+                            no_full_buffer_s:
+
+                            jmp _read_and_write_string
+
+                        _end_read_string:
+
+                        pop rax
+
+                        inc r8                      ; pointer to format string ++
+                        jmp _break
+
 
                 _break:
                 jmp _cycle_while_read_format_string ; HERE jmp to start while
@@ -208,9 +254,9 @@ MyPrintf:
                     inc r8                          ; pointer to format string ++
 
                     cmp r15, r13
-                    jne no_full_buffer_4
+                    jne no_full_buffer_end
                         call Write_Buffer
-                    no_full_buffer_4:
+                    no_full_buffer_end:
 
                     jmp _cycle_while_read_format_string ; HERE jmp to start while
                 
@@ -312,8 +358,10 @@ test_string:        db "I work!", 10    ; size of pointer - 8 byte
 test_string_len:    equ $ - test_string
 
 
-format_string: db "I WORK: %% %d %c - symbols %%", 10, 0   ; format string
+format_string: db "I WORK: %% %d %c - symbols %% %s %c", 10, 0   ; format string
 
+
+print_string: db "STRING!", 0
 
 
 
