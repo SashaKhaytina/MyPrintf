@@ -30,7 +30,7 @@ _start:
             push 'A'
             push print_string
             push 'B'             ; push "B"
-            push 123456789
+            push -123
             ;push 12345
             push format_string
             call MyPrintf
@@ -75,6 +75,7 @@ _start:
 ;   Other regisrts used, that no changed.
 ;   r10
 ;   r11
+;   edx
 ;==========================================================
 MyPrintf:
             pop r14         ; give return code
@@ -157,10 +158,17 @@ MyPrintf:
                         ;-------------------------------------
                         push r10            ; helper variable
                         push rax            ; current symb, that will put in buffer now (use in cycles)
+                        push rdx
 
                         mov r11, help_buffer
                         ; while (num / 10 != 0) { buffer.add( num % 10); num /= 10; }
                         mov eax, r9d
+                        
+                        cmp eax, 0
+                        jge _positive_num
+                            neg eax             ; eax = -eax
+                        _positive_num:
+
                         parsing_num:
                             mov r10d, 10
                             cdq
@@ -177,9 +185,17 @@ MyPrintf:
                             cmp eax, 0
                             jne parsing_num
 
+                        cmp r9d, 0
+                        jge _no_negative_num
+                            xor edx, edx
+                            mov dl, 0x2d
+                            mov [r11], dl           ; put '-' in buffer
+                            inc r11
+                        _no_negative_num:
 
                         mov r10, help_buffer
                         sub r11, 1
+
                         write_ans:
                             cmp r10, r11
                             ja stop_write
@@ -200,6 +216,7 @@ MyPrintf:
                         
                             jmp write_ans
                         stop_write:
+                        pop rdx
                         pop rax
                         pop r10
 
