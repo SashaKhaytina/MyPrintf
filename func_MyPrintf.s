@@ -31,6 +31,7 @@ _start:
             push print_string
             push 'B'             ; push "B"
             push -123
+            push 4
             ;push 12345
             push format_string
             call MyPrintf
@@ -150,8 +151,8 @@ MyPrintf:
                         ;call test_print             ; DEUBG 
                         ;-------------------------------------
 
-                        cmp al, 0x64                ; (if (form_str[r8] == d))
-                        jne  _s                 ; last case                     
+                        cmp al, 0x64            ; (if (form_str[r8] == d))
+                        jne  _s                 ; next case                     
  
                         ;----------------DEBUG----------------
                         ;call test_print             ; DEUBG 
@@ -166,10 +167,10 @@ MyPrintf:
                         
                         cmp eax, 0
                         jge _positive_num
-                            neg eax             ; eax = -eax
+                            neg eax         ; eax = -eax
                         _positive_num:
 
-                        parsing_num:
+                        parsing_num_10CC:
                             mov r10d, 10
                             cdq
                             idiv r10d       ; частное в eax, остаток в edx
@@ -183,7 +184,7 @@ MyPrintf:
                             ;-------------------------------------
 
                             cmp eax, 0
-                            jne parsing_num
+                            jne parsing_num_10CC
 
                         cmp r9d, 0
                         jge _no_negative_num
@@ -196,15 +197,14 @@ MyPrintf:
                         mov r10, help_buffer
                         sub r11, 1
 
-                        write_ans:
+                        write_ans_10CC:
                             cmp r10, r11
-                            ja stop_write
+                            ja stop_write_10CC
                             
                             ;если тут, то segfoult
 
                             mov al, [r11]
-                            ;sub r11, 1
-                            dec r11
+                            dec r11                 ; sub r11, 1
                             mov [r15], al
                             inc r15
 
@@ -214,8 +214,8 @@ MyPrintf:
                                 call Write_Buffer
                             no_full_buffer_d:
                         
-                            jmp write_ans
-                        stop_write:
+                            jmp write_ans_10CC
+                        stop_write_10CC:
                         pop rdx
                         pop rax
                         pop r10
@@ -232,7 +232,7 @@ MyPrintf:
                         ;-------------------------------------
 
                         cmp al, 0x73                ; (if (form_str[r8] == s))
-                        jne  _break                 ; last case
+                        jne  _b                     ; next case                     
 
 
                         push rax                    ; current symb, that will put in buffer now (use in cycles)
@@ -260,6 +260,86 @@ MyPrintf:
 
                         inc r8                      ; pointer to format string ++
                         jmp _break
+
+
+
+                    _b:                         ; Only for pozitive numbers
+
+                        cmp al, 0x62            ; (if (form_str[r8] == b))
+                        jne  _break             ; last case                     
+
+                        ;----------------DEBUG----------------
+                        ;call test_print             ; DEUBG 
+                        ;-------------------------------------
+                        push r10            ; helper variable
+                        push rax            ; current symb, that will put in buffer now (use in cycles)
+                        push rdx
+
+                        mov r11, help_buffer
+                        ; while (num / 2 != 0) { buffer.add( num % 2); num /= 2; }
+                        mov eax, r9d
+                        
+                        ; Processing negative numbers
+                        ;cmp eax, 0
+                        ;jge _positive_num
+                        ;    neg eax         ; eax = -eax
+                        ;_positive_num:
+
+                        parsing_num_2CC:
+                            mov r10d, 2
+                            cdq
+                            idiv r10d       ; частное в eax, остаток в edx
+
+                            add edx, 48
+                            mov [r11], dl   ; low byte edx
+                            inc r11         ; help buffer pointer ++
+
+                            ;----------------DEBUG----------------
+                            ;call test_print             ; DEUBG 
+                            ;-------------------------------------
+
+                            cmp eax, 0
+                            jne parsing_num_2CC
+
+                        ;cmp r9d, 0
+                        ;jge _no_negative_num
+                        ;    xor edx, edx
+                        ;    mov dl, 0x2d
+                        ;    mov [r11], dl           ; put '-' in buffer
+                        ;    inc r11
+                        ;_no_negative_num:
+
+                        mov r10, help_buffer
+                        sub r11, 1
+
+                        write_ans_2CC:
+                            cmp r10, r11
+                            ja stop_write_2CC
+                            
+                            ;если тут, то segfoult
+
+                            mov al, [r11]
+                            dec r11                 ; sub r11, 1
+                            mov [r15], al
+                            inc r15
+
+                            ; если тут, то просто не пишет дальше
+                            cmp r15, r13
+                            jne no_full_buffer_b
+                                call Write_Buffer
+                            no_full_buffer_b:
+                        
+                            jmp write_ans_2CC
+                        stop_write_2CC:
+                        pop rdx
+                        pop rax
+                        pop r10
+
+                        inc r8              ; pointer to format string ++
+
+                        jmp _break
+
+
 
 
                 _break:
@@ -375,7 +455,7 @@ test_string:        db "I work!", 10    ; size of pointer - 8 byte
 test_string_len:    equ $ - test_string
 
 
-format_string: db "I WORK: %% %d %c - symbols %% %s %c", 10, 0   ; format string
+format_string: db "I WORK: %% %b %d %c - symbols %% %s %c", 10, 0   ; format string
 
 
 print_string: db "STRING!", 0
@@ -387,9 +467,9 @@ print_string: db "STRING!", 0
 ;spec_symb_c:    db "c"                  ; ASCII("c")  = 0x63
 ;spec_symb_nul:  db "\0"                 ; ASCII("\0") = 0x00
 
-help_buffer: resb 12                        ; 12 byte (max size int < 10^12)
+help_buffer: resb 32                        ; 32 byte (max size int < 10^12) ; (max size bin(int) - 32 numbres) 
 
-buffer_1: resb 4                          ; 128 byte
+buffer_1: resb 128                          ; 128 byte
 end_buffer:
 ;buffer_1:   dq 0                          ; 8 byte - (8 char) (very small..)
 ;buffer_2:   dq 0                          ; 8 byte - (8 char) (16 byte in sum)
