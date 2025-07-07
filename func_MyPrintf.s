@@ -20,26 +20,78 @@
 
 section .text
 
-;global test_print
-global _start
+global test_print
+global MyPrintf
+;global _start
 
-_start:     
+;_start:     
             ;----------------DEBUG----------------
             ;call test_print
             ;-------------------------------------
-            push 11
-            push 'A'
-            push print_string
-            push 'B'             ; push "B"
-            push -123
-            push 5
+            ;push 11
+            ;push 'A'
+            ;push print_string
+            ;push 'B'             ; push "B"
+            ;push -123
+;            push 5
             ;push 12345
-            push format_string
-            call MyPrintf
+;            push format_string
+;            call MyPrintf
 
-            mov rax, 0x3C       ; exit64 (rdi)
-            xor rdi, rdi        ; exit_code ( always 1 :) )
-            syscall
+;            mov rax, 0x3C       ; exit64 (rdi)
+;            xor rdi, rdi        ; exit_code ( always 0 :) )
+;            syscall
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;==========================================================
+; Moving_arguments
+;--------------------------
+; INFO:
+;   Move all args in stack. (Move, because Calling Convention)
+;--------------------------
+; ENTRY: 
+;   r9  - arg 6
+;   r8  - arg 5
+;   rcx - arg 4
+;   rdx - arg 3
+;   rsi - arg 2
+;   rdi - arg 1
+;--------------------------
+; ENTER: NONE
+;--------------------------
+; DESTR: 
+;   r10 - return code
+;==========================================================
+Moving_arguments:
+            pop r10
+
+            push r9
+            push r8
+            push rcx
+            push rdx
+            push rsi
+            push rdi
+
+            push r10
+
+            ret
+
+
+
+
+
 
 
 
@@ -67,6 +119,7 @@ _start:
 ;--------------------------
 ; DESTR:
 ;   r14 - return code
+;   r12 - stack pointer before push args
 ;   r8  - pointer to format string                                          (8 byte = 64 bit)
 ;   r9  - first elem (from stack)                                           (8 byte = 64 bit)
 ;   r15 - buffer pointer                                                    (8 byte = 64 bit)
@@ -74,14 +127,19 @@ _start:
 ;   al  - variable for current symbol in format string                      (1 byte = 4 bit ) (one char)
 ;         or current symb, that will put in buffer now (use in cycles)
 ;
-;   Other regisrts used, that no changed.
-;   r10
-;   r11
-;   edx
+;   Other regisrts used
+;   r10 (CHANGE)
+;   r11 (NO CHANGE)
+;   edx (NO CHANGE)
 ;==========================================================
 MyPrintf:
-            pop r14         ; give return code
-            pop r8          ; pointer to format string
+
+            pop r14                                 ; give return code
+            mov r12, rsp
+
+            call Moving_arguments
+
+            pop r8                                  ; pointer to format string
 
             mov r15, buffer_1
             mov r13, end_buffer
@@ -124,7 +182,7 @@ MyPrintf:
                         jne  _d                     ; next case
 
 
-                        pop r9          ; first elem
+                        pop r9                      ; first elem
                         
                         mov [r15], r9b              ; buf[r15] = first elem (low byte) translate: младший байт, тк в r9 - 8 байт, а нам надо записать только 1 char
                         inc r15                     ; buffer pointer ++
@@ -139,16 +197,16 @@ MyPrintf:
 
 
                     _d:
-                        cmp al, 0x64            ; (if (form_str[r8] == d))
-                        jne  _s                 ; next case                     
+                        cmp al, 0x64                ; (if (form_str[r8] == d))
+                        jne  _s                     ; next case                     
  
 
-                        pop r9          ; first elem
+                        pop r9                      ; first elem
 
                         mov rbx, 10
                         call Translate_in_other_number_system
 
-                        inc r8                  ; pointer to format string ++
+                        inc r8                      ; pointer to format string ++
 
                         jmp _break
 
@@ -159,7 +217,7 @@ MyPrintf:
                         jne  _b                     ; next case                     
 
 
-                        pop r9          ; first elem
+                        pop r9                      ; first elem
 
                         push rax                    ; current symb, that will put in buffer now (use in cycles)
                         mov al, 10 
@@ -189,33 +247,33 @@ MyPrintf:
 
 
 
-                    _b:                         ; Only for pozitive numbers
-                        cmp al, 0x62            ; (if (form_str[r8] == b))
-                        jne  _o                 ; next case                     
+                    _b:                             ; Only for pozitive numbers
+                        cmp al, 0x62                ; (if (form_str[r8] == b))
+                        jne  _o                     ; next case                     
 
 
-                        pop r9          ; first elem
+                        pop r9                      ; first elem
 
                         mov rbx, 2
                         call Translate_in_other_number_system
 
-                        inc r8                  ; pointer to format string ++
+                        inc r8                      ; pointer to format string ++
 
                         jmp _break
 
 
 
                     _o:
-                        cmp al, 0x6f            ; (if (form_str[r8] == o))
-                        jne  _break             ; last case                     
+                        cmp al, 0x6f                ; (if (form_str[r8] == o))
+                        jne  _break                 ; last case                     
 
 
-                        pop r9          ; first elem
+                        pop r9                      ; first elem
 
                         mov rbx, 8
                         call Translate_in_other_number_system
 
-                        inc r8                  ; pointer to format string ++
+                        inc r8                      ; pointer to format string ++
 
                         jmp _break
 
@@ -243,6 +301,12 @@ MyPrintf:
 
             call Write_Buffer                       ; call func write_buffer
 
+            _clear_stack:                           ; delete the extra registers (that no args)
+                cmp r12, rsp
+                jle _end_func
+                    pop rax
+                    jmp _clear_stack
+            _end_func:
             push r14                                ; put return code
 
             ret
@@ -285,29 +349,29 @@ MyPrintf:
 ;   rdx - remainder of division
 ;==========================================================
 Translate_in_other_number_system:
-                        push r10            ; helper variable
+                        push r10                ; helper variable
                         push rax            
                         push rdx
                         push r11
 
                         mov r11, help_buffer
-                        ; while (num / <new_CC> != 0) { buffer.add( num % <new_CC>); num /= <new_CC>; }
+                                                ; while (num / <new_CC> != 0) { buffer.add( num % <new_CC>); num /= <new_CC>; }
                         mov eax, r9d
                         
-                        ; Processing negative numbers
+                                                ; Processing negative numbers
                         cmp eax, 0
                         jge _positive_num
-                            neg eax         ; eax = -eax
+                            neg eax             ; eax = -eax
                         _positive_num:
 
                         parsing_num_new_CC:
                             mov r10d, ebx
                             cdq
-                            idiv r10d       ; частное в eax, остаток в edx
+                            idiv r10d           ; частное в eax, остаток в edx
 
                             add edx, 48
-                            mov [r11], dl   ; low byte edx
-                            inc r11         ; help buffer pointer ++
+                            mov [r11], dl       ; low byte edx
+                            inc r11             ; help buffer pointer ++
 
                             cmp eax, 0
                             jne parsing_num_new_CC
@@ -397,7 +461,7 @@ Write_Buffer:
             pop rax
 
             ret
-            
+
 
 
 
@@ -434,7 +498,7 @@ test_string:        db "I work!", 10    ; size of pointer - 8 byte
 test_string_len:    equ $ - test_string
 
 
-format_string: db "I WORK: %% %b %d %c - symbols %% %s %c %o", 10, 0   ; format string
+format_string: db "I WORK: %% %b", 10, 0   ; format string
 
 
 print_string: db "STRING!", 0
