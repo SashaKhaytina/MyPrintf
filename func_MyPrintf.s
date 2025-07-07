@@ -22,22 +22,25 @@ section .text
 
 global test_print
 global MyPrintf
+
+
+
 ;global _start
 
 ;_start:     
-            ;----------------DEBUG----------------
-            ;call test_print
-            ;-------------------------------------
-            ;push 11
-            ;push 'A'
-            ;push print_string
-            ;push 'B'             ; push "B"
-            ;push -123
+;            ;----------------DEBUG----------------
+;            ;call test_print
+;            ;-------------------------------------
+;            ;push 11
+;            ;push 'A'
+;            ;push print_string
+;            ;push 'B'             ; push "B"
+;            ;push -123
 ;            push 5
-            ;push 12345
+;            ;push 12345
 ;            push format_string
 ;            call MyPrintf
-
+;
 ;            mov rax, 0x3C       ; exit64 (rdi)
 ;            xor rdi, rdi        ; exit_code ( always 0 :) )
 ;            syscall
@@ -75,7 +78,7 @@ global MyPrintf
 ;   r10 - return code
 ;==========================================================
 Moving_arguments:
-            pop r10
+            pop r10         ; return code
 
             push r9
             push r8
@@ -84,7 +87,7 @@ Moving_arguments:
             push rsi
             push rdi
 
-            push r10
+            push r10        ; return code
 
             ret
 
@@ -380,7 +383,7 @@ Translate_in_other_number_system:
                         jge _no_negative_num
                             xor edx, edx
                             mov dl, 0x2d
-                            mov [r11], dl           ; put '-' in buffer
+                            mov [r11], dl       ; put '-' in buffer
                             inc r11
                         _no_negative_num:
 
@@ -435,7 +438,7 @@ Write_Buffer:
             push rdi
             push rsi
             push rdx
-            push r11 ; !!!
+            push r11 
             push r10
             push r9
             push r8
@@ -494,27 +497,16 @@ test_print:
 
 section .data
 
-test_string:        db "I work!", 10    ; size of pointer - 8 byte
+test_string:        db "I work!", 10        ; size of pointer - 8 byte
 test_string_len:    equ $ - test_string
 
 
-format_string: db "I WORK: %% %b", 10, 0   ; format string
+;format_string: db "I WORK: %% %b", 10, 0   ; format string
 
+;print_string: db "STRING!", 0
 
-print_string: db "STRING!", 0
-
-
-
-;spec_symb:      db "%"                  ; ASCII("%")  = 0x25
-;spec_symb_d:    db "d"                  ; ASCII("d")  = 0x64
-;spec_symb_c:    db "c"                  ; ASCII("c")  = 0x63
-;spec_symb_nul:  db "\0"                 ; ASCII("\0") = 0x00
 
 help_buffer: resb 32                        ; 32 byte (max size int < 10^12) ; (max size bin(int) - 32 numbres) 
 
 buffer_1: resb 128                          ; 128 byte
 end_buffer:
-;buffer_1:   dq 0                          ; 8 byte - (8 char) (very small..)
-;buffer_2:   dq 0                          ; 8 byte - (8 char) (16 byte in sum)
-;buffer_3:   dq 0                          ; 8 byte - (8 char) (24 byte in sum)
-;buffer_4:   dq 0                          ; 8 byte - (8 char) (32 byte in sum)
